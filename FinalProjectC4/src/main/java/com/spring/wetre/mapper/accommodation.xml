@@ -1,0 +1,397 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- ==== #00. mapper 기본설정 ==== -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- ==== #00. 루트 엘리먼트 & 네임스페이스 설정(프로젝트 전체내에서 유일해야 함.) ==== -->
+<mapper namespace="accommodation">
+
+
+	<!-- #y3. 호텔 목록 뽑기: 검색어 포함, 옵션 포함, 페이징 처리 -->
+	<!-- 주의!!! foreach의 경우에는 값 넣을 때 문자열이면 홑따옴표 붙여줘야 됨!!! -->
+ 	<select id="getAccList" parameterType="HashMap" resultType="com.spring.wetre.model.AccVO">
+		select acc_idx, acc_name, acc_img
+		     , case when length(acc_text) > 30 then substr(acc_text, 1, 28)||'..'
+		                                       else acc_text end AS acc_text
+		     , acc_addr1, acc_addr2, cnt, acc_type, region_name
+		from
+		    (
+		     select rownum AS RNO, acc_idx, acc_name, acc_img, acc_text, acc_addr1, acc_addr2, cnt, acc_type
+		          , region_name, region_shortname
+		     from
+		         (
+		          select distinct acc_idx, acc_name, acc_img, acc_text, acc_addr1, acc_addr2, cnt, acc_type
+		               , region_name, region_shortname
+		          from
+		              (
+		               select acc_idx, acc_name, acc_img, acc_text, acc_addr1, acc_addr2, cnt, acc_type
+		                    , region_name, region_shortname, acc_grade
+		               from view_hotel_list_search
+		               <where> 1 = 1
+							<if test='(adultNum != null and !"".equals(adultNum)) or (kidsNum != null and !"".equals(kidsNum))'>
+								and ((ay_fee * #{adultNum}) + (k_fee * #{kidsNum}) between #{accListPrice1} and #{accListPrice2})
+							</if>
+							<if test='regionArr != null and !"".equals(regionArr)'>
+								and
+								<foreach collection="regionArr" index="i" open="(" separator="or" close=")">
+									acc_addr1 like '%' || '${regionArr[i]}' || '%' or acc_addr2 like '%' || '${regionArr[i]}' || '%'
+								</foreach>
+							</if>
+							<if test='book_start != null and !"".equals(book_start)'>
+								and (book_start NOT between TO_DATE(#{book_start},'YYYY-MM-DD HH24:MI:SS') and TO_DATE(#{book_end}, 'YYYY-MM-DD HH24:MI:SS'))				
+							</if>
+							<if test='book_end != null and !"".equals(book_end)'>
+								and (book_end NOT between TO_DATE(#{book_start},'YYYY-MM-DD HH24:MI:SS') and TO_DATE(#{book_end}, 'YYYY-MM-DD HH24:MI:SS'))
+							</if>
+							<if test='acc_gradeArr != null and !"".equals(acc_gradeArr)'>
+								and
+								<foreach collection="acc_gradeArr" index="j" open="(" separator="or" close=")">
+									acc_grade = ${acc_gradeArr[j]}
+								</foreach>
+							</if>
+							<if test='acc_typeArr != null and !"".equals(acc_typeArr)'>
+								and
+								<foreach collection="acc_typeArr" index="k" open="(" separator="or" close=")">
+									acc_type like '%'|| '${acc_typeArr[k]}' || '%'
+								</foreach>
+							</if>
+		               </where>
+                       ) V
+                 <if test='blendSearchWord != null and !"".equals(blendSearchWord)'>
+					where acc_addr1 like '%'|| #{blendSearchWord} || '%' or acc_name like '%'|| #{blendSearchWord} || '%' or region_shortname like '%' || #{blendSearchWord} || '%'
+		         </if>
+		         ) T
+		    ) F
+		where RNO between #{startRno} and #{endRno}
+	</select>
+	
+	
+	
+	<!-- #y3. 총 게시물 수: 검색어 (미)포함 -->
+ 	<select id="getAccListCount" parameterType="HashMap" resultType="int">
+        select count(*)
+        from
+            (
+             select distinct acc_idx, acc_name, acc_img, acc_text, acc_addr1, acc_addr2, cnt, acc_type
+                  , region_name, region_shortname, acc_grade
+             from view_hotel_list_search
+             <where> 1 = 1
+				 <if test='(adultNum != null and !"".equals(adultNum)) or (kidsNum != null and !"".equals(kidsNum))'>
+					and ((ay_fee * #{adultNum}) + (k_fee * #{kidsNum}) between #{accListPrice1} and #{accListPrice2})
+				 </if>
+				 <if test='regionArr != null and !"".equals(regionArr)'>
+					and
+					<foreach collection="regionArr" index="i" open="(" separator="or" close=")">
+						acc_addr1 like '%' || '${regionArr[i]}' || '%' or acc_addr2 like '%' || '${regionArr[i]}' || '%'
+					</foreach>
+				 </if>
+				 <if test='book_start != null and !"".equals(book_start)'>
+					and (book_start NOT between TO_DATE(#{book_start},'YYYY-MM-DD HH24:MI:SS') and TO_DATE(#{book_end}, 'YYYY-MM-DD HH24:MI:SS'))				
+				 </if>
+				 <if test='book_end != null and !"".equals(book_end)'>
+					and (book_end NOT between TO_DATE(#{book_start},'YYYY-MM-DD HH24:MI:SS') and TO_DATE(#{book_end}, 'YYYY-MM-DD HH24:MI:SS'))
+				 </if>
+				 <if test='acc_gradeArr != null and !"".equals(acc_gradeArr)'>
+					and
+					<foreach collection="acc_gradeArr" index="j" open="(" separator="or" close=")">
+						acc_grade = ${acc_gradeArr[j]}
+					</foreach>
+				 </if>
+				 <if test='acc_typeArr != null and !"".equals(acc_typeArr)'>
+					and
+					<foreach collection="acc_typeArr" index="k" open="(" separator="or" close=")">
+						acc_type like '%'|| '${acc_typeArr[k]}' || '%'
+					</foreach>
+				 </if>
+             </where>
+            ) V
+        <if test='blendSearchWord != null and !"".equals(blendSearchWord)'>
+        	where acc_addr1 like '%'|| #{blendSearchWord} || '%' or acc_name like '%'|| #{blendSearchWord} || '%' or region_shortname like '%' || #{blendSearchWord} || '%'
+       	</if>
+	</select>
+	
+	
+	
+	<!-- #y3. 호텔 등급별 개수 뽑기 -->
+	<resultMap type="HashMap" id="accGradeCnt">
+		<result property="acc_grade"	column="acc_grade"	javaType="int"/>
+		<result property="CNT"			column="CNT" 		javaType="String"/>
+	</resultMap>
+	<select id="getAccGradeCnt" parameterType="HashMap" resultMap="accGradeCnt">
+		select acc_grade, count(*) AS CNT
+		from
+		    (
+		     select acc_name, acc_addr1, acc_addr2, acc_type, acc_grade
+		          , region_name, region_shortname
+		     from view_hotel_list_search
+		     <where> 1 = 1
+				<if test='(adultNum != null and !"".equals(adultNum)) or (kidsNum != null and !"".equals(kidsNum))'>
+					and ((ay_fee * #{adultNum}) + (k_fee * #{kidsNum}) between #{accListPrice1} and #{accListPrice2})
+				</if>
+				<if test='regionArr != null and !"".equals(regionArr)'>
+					and
+					<foreach collection="regionArr" index="i" open="(" separator="or" close=")">
+						acc_addr1 like '%' || '${regionArr[i]}' || '%' or acc_addr2 like '%' || '${regionArr[i]}' || '%'
+					</foreach>
+				</if>
+				<if test='book_start != null and !"".equals(book_start)'>
+					and (book_start NOT between TO_DATE(#{book_start},'YYYY-MM-DD HH24:MI:SS') and TO_DATE(#{book_end}, 'YYYY-MM-DD HH24:MI:SS'))				
+				</if>
+				<if test='book_end != null and !"".equals(book_end)'>
+					and (book_end NOT between TO_DATE(#{book_start},'YYYY-MM-DD HH24:MI:SS') and TO_DATE(#{book_end}, 'YYYY-MM-DD HH24:MI:SS'))
+				</if>
+		     </where>
+		     ) V
+		     <if test='blendSearchWord != null and !"".equals(blendSearchWord)'>
+		     where acc_addr1 like '%'|| #{blendSearchWord} || '%' or acc_name like '%'|| #{blendSearchWord} || '%' or region_shortname like '%' || #{blendSearchWord} || '%'
+		     </if>
+		group by acc_grade
+	</select>
+
+
+
+	<!-- #y3. 호텔 타입별 개수 뽑기 -->
+	<resultMap type="HashMap" id="accTypeCnt">
+		<result property="acc_type"	column="acc_type"	javaType="String"/>
+		<result property="CNT"		column="CNT"		javaType="String"/>
+	</resultMap>
+	<select id="getAccTypeCnt" parameterType="HashMap" resultMap="accTypeCnt">
+		select acc_type, count(*) AS CNT
+		from
+		    (
+		     select acc_name, acc_addr1, acc_addr2, acc_type, acc_grade
+		          , region_name, region_shortname
+		     from view_hotel_list_search
+		     <where> 1 = 1
+				<if test='(adultNum != null and !"".equals(adultNum)) or (kidsNum != null and !"".equals(kidsNum))'>
+					and ((ay_fee * #{adultNum}) + (k_fee * #{kidsNum}) between #{accListPrice1} and #{accListPrice2})
+				</if>
+				<if test='regionArr != null and !"".equals(regionArr)'>
+					and
+					<foreach collection="regionArr" index="i" open="(" separator="or" close=")">
+						acc_addr1 like '%' || '${regionArr[i]}' || '%' or acc_addr2 like '%' || '${regionArr[i]}' || '%'
+					</foreach>
+				</if>
+				<if test='book_start != null and !"".equals(book_start)'>
+					and (book_start NOT between TO_DATE(#{book_start},'YYYY-MM-DD HH24:MI:SS') and TO_DATE(#{book_end}, 'YYYY-MM-DD HH24:MI:SS'))				
+				</if>
+				<if test='book_end != null and !"".equals(book_end)'>
+					and (book_end NOT between TO_DATE(#{book_start},'YYYY-MM-DD HH24:MI:SS') and TO_DATE(#{book_end}, 'YYYY-MM-DD HH24:MI:SS'))
+				</if>
+		     </where>
+		     ) V
+		     <if test='blendSearchWord != null and !"".equals(blendSearchWord)'>
+		     where acc_addr1 like '%'|| #{blendSearchWord} || '%' or acc_name like '%'|| #{blendSearchWord} || '%' or region_shortname like '%' || #{blendSearchWord} || '%'
+		     </if>
+		group by acc_type
+	</select>
+	
+	
+	
+	<!-- #y3. 태그 클라우드 -->
+	<resultMap type="HashMap" id="tagMap">
+		<result property="acc_name"	column="acc_name" 	javaType="String"/>
+		<result property="acc_idx"	column="acc_idx"	javaType="String"/>
+	</resultMap>
+	<select id="getTagList" resultMap="tagMap">
+		select acc_name, acc_idx
+		from
+		    (
+		    select row_number() over(order by cnt desc) AS RNO, acc_name, acc_idx, cnt
+		    from acc_tag
+		    ) V
+		where RNO between 1 and 7
+		order by cnt desc
+	</select>
+	
+	
+	<!-- #y5. 검색어 자동 완성3: 호텔주소랑 이름만 뽑아옴. -->
+	<select id="getAutoSearchWord" parameterType="HashMap" resultType="com.spring.wetre.model.AccVO">
+		select distinct acc_addr1, acc_addr2, acc_name
+		from acc_tbl
+		where acc_addr1 like '%'|| lower(#{blendSearchWordAjax}) || '%'
+		   or acc_addr2 like '%'|| lower(#{blendSearchWordAjax}) || '%'
+		   or acc_name like '%'|| lower(#{blendSearchWordAjax}) || '%'
+	</select>
+	
+
+	<!-- #y3. 검색어 자동 완성3: 지역들 뽑아옴. -->
+	<resultMap type="HashMap" id="regionMap">
+		<result property="region_name"		column="region_name" 		javaType="String"/>
+		<result property="region_shortName"	column="region_shortName"	javaType="String"/>
+	</resultMap>
+	<select id="getRegionList" parameterType="HashMap" resultMap="regionMap">
+		select region_name
+		from area_tbl
+		<if test='blendSearchWordAjax != null and !"".equals(blendSearchWordAjax)'>
+			where (region_name like '%' || lower(#{blendSearchWordAjax}) || '%' or
+			       region_shortname like '%' || lower(#{blendSearchWordAjax}) || '%')
+		</if>
+			order by region_code asc
+	</select>
+
+
+
+	<!-- 고유번호를 가지고 해당 숙박시설의 정보를 조회해오기 -->
+	<select id="getOneAccInfomation" parameterType="int" resultType="com.spring.wetre.model.AccVO">
+		select acc_idx, acc_name, acc_img, acc_text, acc_addr1, acc_addr2
+		from acc_tbl
+		where acc_idx = #{acc_idx}
+	</select>
+	
+	<!-- 숙박시설 추가이미지 조회해오기 -->
+	<resultMap type="HashMap" id="accImg">
+		<result property="acc_idx" column="acc_idx" javaType="String" />
+		<result property="ad_img1" column="ad_img1" javaType="String" />
+		<result property="ad_img2" column="ad_img2" javaType="String" />
+		<result property="ad_img3" column="ad_img3" javaType="String" />
+		<result property="ad_img4" column="ad_img4" javaType="String" />
+		<result property="ad_img5" column="ad_img5" javaType="String" />
+	</resultMap>
+	<select id="getAddaccImg" parameterType="int" resultMap="accImg">
+		select acc_idx, ad_img1, ad_img2, ad_img3, ad_img4, ad_img5
+		from addtional_img
+		where acc_idx = #{acc_idx}
+	</select>
+			
+	<!-- 숙박일자 및 숙박 인원 수 조회해오기 -->
+	<resultMap type="HashMap" id="DateAndPeopleCount">
+	 	<result property="acc_idx" column="acc_idx" javaType="String" />
+		<result property="acc_name" column="acc_name" javaType="String" />
+		<result property="ay_fee" column="ay_fee" javaType="String" />
+		<result property="k_fee" column="k_fee" javaType="String" />
+		<result property="book_start" column="book_start" javaType="String" />
+		<result property="book_end" column="book_end" javaType="String" />
+		<result property="rtype_idx" column="rtype_idx" javaType="String" />
+		<result property="rtype_name" column="rtype_name" javaType="String" />
+		<result property="rtype_cnt" column="rtype_cnt" javaType="String" />
+		<result property="totalpay" column="totalpay" javaType="String" />
+		<result property="BM_BR_ADDFEE" column="BM_BR_ADDFEE" javaType="String" />
+		<result property="BM_AMENITY" column="BM_AMENITY" javaType="String" />
+		<result property="BM_DEVICE" column="BM_DEVICE" javaType="String" />
+	</resultMap>
+
+		
+	<!-- 구글 지도 사용하기 -->
+	<select id="getAccMapList" parameterType="int" resultType="String">
+		select acc_addr1
+		from acc_tbl
+		where acc_idx = #{acc_idx}
+	</select>
+	
+	
+	<!-- 객실 종류 및 요금 조회하기 -->
+	<select id="getRoomTypeAndPrice" parameterType="HashMap" resultMap="DateAndPeopleCount">
+		select V.acc_idx, V.acc_name, V.acc_rcnt
+      , V.ay_fee, V.k_fee, V.book_start, V.book_end
+      , V.rtype_idx, V.rtype_name, V.rtype_cnt 
+      ,(V.ay_fee * #{adult}) + (V.k_fee * #{kids}) AS TOTALPAY
+      , V.ad_img1, V.ad_img2, V.ad_img3, V.ad_img4, V.ad_img5
+      , G.BM_BR_ADDFEE, G.BM_AMENITY, G.BM_DEVICE
+		from
+		    (
+		        select A.acc_idx, acc_name, acc_rcnt
+		             , ay_fee, k_fee, book_start, book_end
+		             , rtype_idx, rtype_name, rtype_cnt 
+		             ,(ay_fee * #{adult}) + (k_fee * #{kids}) AS TOTALPAY
+		             , ad_img1, ad_img2, ad_img3, ad_img4, ad_img5
+		        from view_hotel_list_search A left outer join room_type_tbl B
+		          on A.acc_idx = B.fk_acc_idx
+		          left outer join addtional_img C
+		          on A.acc_idx = C.acc_idx
+		    ) V
+		left outer join
+		    ( select FK_ACC_IDX, E.r_idx, BM_BR_ADDFEE, BM_AMENITY, BM_DEVICE
+		      from room_tbl E left outer join barmenity F
+		      on E.R_IDX = F.R_IDX
+		    ) G
+		    on V.acc_idx = G.FK_ACC_IDX
+		<where> 1 = 1 
+			<if test='acc_idx != null and !"".equals(acc_idx)'>
+				and V.acc_idx = #{acc_idx}
+			</if>
+			<if test='(adult != null and !"".equals(adult)) or (kids != null and !"".equals(kids))'>
+				and ((V.ay_fee * #{adult}) + (V.k_fee * #{kids})) between 1 and 1000000000
+			</if>
+			<if test='book_start != null and !"".equals(book_start)'>
+				and (V.book_start NOT between TO_DATE(#{book_start},'YYYY-MM-DD HH24:MI:SS') and TO_DATE(#{book_end}, 'YYYY-MM-DD HH24:MI:SS'))				
+			</if>
+			<if test='book_end != null and !"".equals(book_end)'>
+				and (V.book_end NOT between TO_DATE(#{book_start},'YYYY-MM-DD HH24:MI:SS') and TO_DATE(#{book_end}, 'YYYY-MM-DD HH24:MI:SS'))
+			</if>
+		</where>
+	</select>
+		
+	
+	<!-- ajax를 이용해서 좋아요 출력하기 -->
+	<insert id="insertLike" parameterType="HashMap">
+    	insert into like_tbl(acc_idx, p_userid)
+        values(#{acc_idx}, #{userid})
+    </insert>
+	<delete id="deleteDislike" parameterType="HashMap">
+    	delete from dislike_tbl
+    	where acc_idx = #{acc_idx} and p_userid = #{userid}
+    </delete>
+	
+	<!-- ajax를 이용해서 싫어요 출력하기 -->
+	<insert id="insertDislike" parameterType="HashMap">
+    	insert into dislike_tbl(acc_idx, p_userid)
+        values(#{acc_idx}, #{userid})
+    </insert>
+    <delete id="deleteLike" parameterType="HashMap">
+    	delete from like_tbl
+    	where acc_idx = #{acc_idx} and p_userid = #{userid}
+    </delete>
+    
+    
+    <resultMap type="HashMap" id="likedislikeMap">
+    	<result property="LIKECNT"   column="likecnt"   javaType="String" /> 
+		<result property="DISLIKECNT" column="dislikecnt" javaType="String" />
+    </resultMap>
+    <!-- 좋아요 싫어요 갯수 구하기 -->
+    <select id="getLikeDislikeCount" parameterType="String" resultMap="likedislikeMap">
+    	select (select count(*) 
+				from like_tbl
+				where acc_idx = #{acc_idx}) as likecnt,
+			   (select count(*)
+				from dislike_tbl
+				where acc_idx = #{acc_idx}) as dislikecnt
+		from dual
+    </select>
+    
+    
+    <!-- 댓글쓰기 -->    
+    <insert id="addComment" parameterType="com.spring.wetre.model.CommentVO">
+    	insert into comment_tbl(acc_idx, p_userid, comments, status, com_writedate)
+		values(#{acc_idx}, #{fk_userid}, #{comments}, default, default)
+    </insert>	
+
+    
+    <!-- 댓글 보여주기 -->
+    <select id="commentVOList" parameterType="String" resultType="com.spring.wetre.model.CommentVO">
+        select comments, p_userid AS fk_userid, to_char(com_writedate, 'yyyy-mm-dd') AS com_writedate
+		from comment_tbl 
+		where acc_idx = #{acc_idx}
+		order by com_writedate asc
+	</select>
+
+	
+
+	<!-- 지도 검색 페이지 -->
+	<select id="getStoreMap" resultType="com.spring.wetre.model.AccVO">
+		select acc_idx, acc_name, acc_tel1, acc_tel2, acc_tel3, acc_addr1,acc_img
+		from acc_tbl
+		order by acc_idx asc
+	</select>
+
+
+
+	<!-- 태그테이블 인서트 -->
+	<update id="hoteltag" parameterType="String">
+		update acc_tag set cnt = cnt + 1
+		where acc_idx = #{acc_idx}
+	</update>
+
+
+	
+</mapper>
